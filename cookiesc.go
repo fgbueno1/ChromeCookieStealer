@@ -13,7 +13,6 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-// DebugData is JSON structure returned by Chromium
 type DebugData struct {
 	Description          string `json:"description"`
 	DevtoolsFrontendURL  string `json:"devtoolsFrontendUrl"`
@@ -25,18 +24,15 @@ type DebugData struct {
 	WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 }
 
-// WebsocketResponseRoot is the raw response from Chromium websocket
-type WebsocketResponseRoot struct {
-	ID     int                     `json:"id"`
-	Result WebsocketResponseNested `json:"result"`
+type WebsocketResponse struct {
+	ID     int     `json:"id"`
+	Result Cookies `json:"result"`
 }
 
-// WebsocketResponseNested is the object within the the raw response from Chromium websocket
-type WebsocketResponseNested struct {
+type Cookies struct {
 	Cookies []Cookie `json:"cookies"`
 }
 
-// Cookie is JSON structure returned by Chromium websocket
 type Cookie struct {
 	Name     string  `json:"name"`
 	Value    string  `json:"value"`
@@ -118,7 +114,7 @@ func dumpCookies(debugList []DebugData) error {
 	var rawResponse []byte
 	websocket.Message.Receive(ws, &rawResponse)
 
-	var websocketResponseRoot WebsocketResponseRoot
+	var websocketResponseRoot WebsocketResponse
 	err = json.Unmarshal(rawResponse, &websocketResponseRoot)
 	if err != nil {
 		return err
@@ -126,9 +122,7 @@ func dumpCookies(debugList []DebugData) error {
 	lightCookieList := []LightCookie{}
 
 	for _, value := range websocketResponseRoot.Result.Cookies {
-		// Turns Cookie into LightCookie with modified expires field
 		var lightCookie LightCookie
-
 		lightCookie.Name = value.Name
 		lightCookie.Value = value.Value
 		lightCookie.Domain = value.Domain
@@ -138,7 +132,7 @@ func dumpCookies(debugList []DebugData) error {
 	}
 
 	for _, cookie := range lightCookieList {
-		message := fmt.Sprintf(
+		msg := fmt.Sprintf(
 			"Name: %s\nValue: %s\nDomain: %s\nPath: %s\nExpire: %f\n",
 			cookie.Name,
 			cookie.Value,
@@ -146,7 +140,7 @@ func dumpCookies(debugList []DebugData) error {
 			cookie.Path,
 			cookie.Expires,
 		)
-		fmt.Print(message)
+		fmt.Print(msg)
 	}
 	return nil
 }
