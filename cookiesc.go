@@ -59,7 +59,7 @@ type LightCookie struct {
 func main() {
 	debugPort := "9999"
 
-	err := startProcess()
+	err := startProcess(debugPort)
 	if err != nil {
 		os.Exit(0)
 	}
@@ -74,8 +74,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	terminateProcess()
-	os.Exit(3)
+	err = terminateProcess()
+	if err != nil {
+		os.Exit(3)
+	}
 }
 
 // GetDebugData access the /json endpoint to retrieve debug data
@@ -96,7 +98,6 @@ func getDebugData(debugPort string) ([]DebugData, error) {
 	if err != nil {
 		return debugList, err
 	}
-
 	return debugList, nil
 }
 
@@ -107,7 +108,6 @@ func dumpCookies(debugList []DebugData) error {
 	if err != nil {
 		return err
 	}
-
 	var message = "{\"id\": 1, \"method\":\"Network.getAllCookies\"}"
 	websocket.Message.Send(ws, message)
 
@@ -120,7 +120,6 @@ func dumpCookies(debugList []DebugData) error {
 		return err
 	}
 	lightCookieList := []LightCookie{}
-
 	for _, value := range websocketResponseRoot.Result.Cookies {
 		var lightCookie LightCookie
 		lightCookie.Name = value.Name
@@ -146,12 +145,12 @@ func dumpCookies(debugList []DebugData) error {
 }
 
 // startProcess starts a new chrome browser in headless and debug mode
-func startProcess() error {
+func startProcess(port string) error {
 	user, err := user.Current()
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("powershell.exe", "-c", `Start-Process "chrome.exe" -ArgumentList '--remote-debugging-port=9999 --headless --user-data-dir="`+user.HomeDir+`\AppData\Local\Google\Chrome\User Data"'`)
+	cmd := exec.Command("powershell.exe", "-c", `Start-Process "chrome.exe" -ArgumentList ' --remote-debugging-port=`+port+` --user-data-dir="`+user.HomeDir+`\AppData\Local\Google\Chrome\User Data"'`)
 	if err := cmd.Run(); err != nil {
 		return err
 	}
