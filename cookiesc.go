@@ -150,7 +150,7 @@ func startProcess(port string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("powershell.exe", "-c", `Start-Process "chrome.exe" -ArgumentList ' --remote-debugging-port=`+port+` --user-data-dir="`+user.HomeDir+`\AppData\Local\Google\Chrome\User Data"'`)
+	cmd := exec.Command("powershell.exe", "-c", `Start-Process "chrome.exe" -ArgumentList '--remote-debugging-port=`+port+` --user-data-dir="`+user.HomeDir+`\AppData\Local\Google\Chrome\User Data"'`)
 	if err := cmd.Run(); err != nil {
 		return err
 	}
